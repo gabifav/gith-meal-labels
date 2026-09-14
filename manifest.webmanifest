@@ -1,0 +1,10 @@
+{
+  "name": "GITH Meal Label Manager",
+  "short_name": "Meal Labels",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5fa",
+  "theme_color": "#6561A8",
+  "description": "Create and print Good in the Hood meal labels on Avery 33s sheets."
+}
