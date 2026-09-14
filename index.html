@@ -1,1 +1,70 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Loading…</title></head><body>Preparing Meal Labels…</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GITH Meal Labels</title>
+<meta name="theme-color" content="#6561A8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Meal Labels">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--p:#6561A8;--y:#FDD500;--bg:#f6f5fa;--card:#fff;--text:#25242b;--muted:#6c6977;--danger:#b42318}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+header{background:var(--p);color:white;padding:22px 18px 26px;border-radius:0 0 24px 24px}
+header h1{margin:0;font-size:27px} header p{margin:6px 0 0;opacity:.9}
+main{max-width:760px;margin:auto;padding:16px}
+.card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 4px 18px #0000000d}
+h2{font-size:19px;margin:0 0 14px}
+label{display:block;font-weight:700;margin:12px 0 6px}
+input,select,textarea{width:100%;font:inherit;padding:14px;border:2px solid #dedce7;border-radius:12px;background:white}
+input:focus,select:focus{outline:3px solid #6561A82a;border-color:var(--p)}
+.qty{display:grid;grid-template-columns:56px 1fr 56px;gap:8px;align-items:center}
+.qty button{height:50px;font-size:25px}
+button{font:inherit;font-weight:750;border:0;border-radius:12px;padding:13px 15px;cursor:pointer}
+.primary{background:var(--p);color:white;width:100%;margin-top:16px}
+.secondary{background:#eceaf4;color:#34313f}
+.yellow{background:var(--y);color:#24220d}
+.danger{background:#fff0ee;color:var(--danger)}
+.topline{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.total{font-weight:800;background:#efedf7;padding:7px 10px;border-radius:999px}
+.meal{border:2px solid #eceaf2;border-radius:15px;padding:14px;margin:10px 0}
+.meal h3{margin:0 0 5px;font-size:17px}.meta{color:var(--muted);margin-bottom:10px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{padding:9px 12px}
+.empty{text-align:center;color:var(--muted);padding:22px 5px}
+.footer-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+@media(max-width:520px){.footer-actions{grid-template-columns:1fr}header h1{font-size:24px}}
+#printSheet{display:none}
+@page{size:A4 portrait;margin:0}
+@media print{
+ body{background:white;margin:0!important;padding:0!important}
+ body>*:not(#printSheet){display:none!important}
+ #printSheet{display:grid!important;position:absolute;left:0;top:0;width:210mm;height:297mm;padding:14.85mm 9mm;grid-template-columns:repeat(3,64mm);grid-template-rows:repeat(11,24.3mm);gap:0;align-content:start;justify-content:start;background:white;overflow:hidden}
+ .averyLabel{width:64mm;height:24.3mm;overflow:hidden;padding:2.2mm 2.6mm;display:flex;flex-direction:column;justify-content:center;font-family:Arial,sans-serif;color:#000;break-inside:avoid}
+ .averyMeal{font-size:10.5pt;line-height:1.05;font-weight:700;white-space:normal;overflow-wrap:anywhere}
+ .averyDiet{font-size:8.5pt;line-height:1.05;margin-top:1mm;font-weight:600;white-space:normal;overflow-wrap:anywhere}
+}
+</style>
+</head>
+<body>
+<header><h1>Meal Label Manager</h1><p>Enter meals without editing raw spreadsheet data.</p></header>
+<main>
+<section class="card">
+<h2>Paste from WhatsApp</h2>
+<p class="note">Paste the meal list exactly as it appears in WhatsApp. I’ll pull out the meal, dietary instruction and quantity. Check the preview before adding.</p>
+<textarea id="waPaste" rows="7" placeholder="Example:
+Chicken Pasta x25
+Beef Stir Fry - 12
+GF Beef Stir Fry x3" style="resize:vertical"></textarea>
+<button class="primary" id="parseBtn" type="button">Read WhatsApp meals</button>
+<div id="parseResult" class="note" style="margin-top:12px"></div>
+</section>
+<section class="card"><h2 id="formTitle">Add a meal</h2><label for="meal">Meal name</label><input id="meal" list="mealSuggestions" placeholder="e.g. Lamb Souvlaki & Veg" autocomplete="off"><datalist id="mealSuggestions"><option value="Lamb Souvlaki & Veg"><option value="Pulled Pork & Fried Rice"><option value="Beef Stir Fry"></datalist><label for="dietary">Dietary / meal instruction</label><select id="dietary"><option>Regular / No instruction</option><option>No Pasta</option><option>Gluten Free (GF)</option><option>Dairy Free (DF)</option><option>Gluten & Dairy Free (GF/DF)</option><option>Vegetarian (V)</option><option>Vegan (VG)</option><option value="Other">Other…</option></select><input id="customDietary" placeholder="Type the other instruction" style="display:none;margin-top:8px"><label>Number of labels</label><div class="qty"><button class="secondary" id="minus" type="button">−</button><input id="qty" type="number" min="1" max="500" value="1" inputmode="numeric" style="text-align:center;font-weight:800"><button class="secondary" id="plus" type="button">+</button></div><button class="primary" id="addBtn">+ Add meal</button><button class="secondary" id="cancelBtn" style="display:none;width:100%;margin-top:8px">Cancel edit</button></section>
+<section class="card"><div class="topline"><h2>Today's labels</h2><span class="total"><span id="total">0</span> total</span></div><div id="list" class="empty">No meals added yet.</div></section>
+<section class="card"><h2>Save / export</h2><div class="footer-actions"><button class="yellow" id="printBtn">Print Avery 33s</button><button class="secondary" id="csvBtn">Export CSV</button><button class="secondary" id="jsonBtn">Save backup</button></div><button class="danger" id="clearBtn" style="width:100%;margin-top:10px">Clear today's meals</button><p class="note"><b>Avery 33s / L7157:</b> A4, 33 labels (3 × 11), 64 × 24.3 mm. On iPhone, use Print and keep paper size A4. Do not use Fit to Page.</p></section>
+</main><div id="printSheet" aria-hidden="true"></div>
+<script>
+let meals=JSON.parse(localStorage.getItem("mealLabelMeals")||"[]"), editing=-1;const $=id=>document.getElementById(id);function persist(){localStorage.setItem("mealLabelMeals",JSON.stringify(meals));render()}function parseWhatsApp(){const raw=$("waPaste").value.trim();if(!raw){alert("Paste the WhatsApp meal message first.");return}const lines=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const found=[],skipped=[];const dietRules=[[/\b(?:gf\s*\/\s*df|df\s*\/\s*gf|gluten\s*(?:&|and)\s*dairy\s*free)\b/i,"Gluten & Dairy Free (GF/DF)"],[/\b(?:gluten[ -]?free|GF)\b/i,"Gluten Free (GF)"],[/\b(?:dairy[ -]?free|DF)\b/i,"Dairy Free (DF)"],[/\b(?:vegetarian|\bV\b)\b/i,"Vegetarian (V)"],[/\b(?:vegan|\bVG\b)\b/i,"Vegan (VG)"],[/\bno\s+pasta\b/i,"No Pasta"]];for(let line of lines){line=line.replace(/^\[?\d{1,2}[\/:.-]\d{1,2}(?:[\/:.-]\d{2,4})?[^\]]*\]?\s*[-–]?\s*[^:]{1,40}:\s*/,"").replace(/^[•*\-–—]+\s*/,"").trim();if(!line)continue;let qty=null,name=line,m;if((m=name.match(/(?:\s|^)(?:x|×)\s*(\d{1,3})\s*(?:meals?|labels?)?\s*$/i))){qty=+m[1];name=name.slice(0,m.index).trim()}else if((m=name.match(/(?:\s|^)[\-–—:]?\s*(\d{1,3})\s*(?:meals?|labels?)?\s*$/i))){qty=+m[1];name=name.slice(0,m.index).replace(/[\-–—:]\s*$/,"").trim()}else if((m=name.match(/^(\d{1,3})\s*(?:x|×)?\s+(.+)$/i))){qty=+m[1];name=m[2].trim()}if(!qty||qty>500||!name){skipped.push(line);continue}let dietary="Regular / No instruction";for(const [re,label] of dietRules){if(re.test(name)){dietary=label;name=name.replace(re," ").replace(/\s{2,}/g," ").replace(/^[-–—:, ]+|[-–—:, ]+$/g,"").trim();break}}if(!name){skipped.push(line);continue}found.push({meal:name,dietary,qty})}if(!found){$("parseResult").innerHTML='<b>Nothing recognised yet.</b> Try putting the quantity on the same line as each meal, e.g. “Chicken Pasta x25”.';return}window._waFound=found;$("parseResult").innerHTML='<b>Found '+found.length+' meal entr'+(found.length===1?'y':'ies')+':</b><br>'+found.map(x=>'✓ '+esc(x.meal)+' — '+esc(x.dietary)+' — <b>'+x.qty+'</b>').join('<br>')+(skipped.length?'<br><br><b>Check manually ('+skipped.length+'):</b><br>'+skipped.map(x=>'⚠ '+esc(x)).join('<br>'):'')+'<br><button class="yellow" id="addParsedBtn" type="button" style="width:100%;margin-top:12px">Add these to today’s labels</button>';$("addParsedBtn").onclick=()=>{meals.push(...window._waFound);persist();$("waPaste").value="";$("parseResult").innerHTML="Added ✓";window._waFound=[]}}$("parseBtn").onclick=parseWhatsApp;function dietaryValue(){let v=$("dietary").value;return v==="Other"?$("customDietary").value.trim():v}$("dietary").onchange=()=>{$("customDietary").style.display=$("dietary").value==="Other"?"block":"none"};$("minus").onclick=()=>{$("qty").value=Math.max(1,(+$("qty").value||1)-1)};$("plus").onclick=()=>{$("qty").value=Math.min(500,(+$("qty").value||1)+1)};function reset(){editing=-1;$("formTitle").textContent="Add a meal";$("addBtn").textContent="+ Add meal";$("cancelBtn").style.display="none";$("meal").value="";$("dietary").value="Regular / No instruction";$("customDietary").value="";$("customDietary").style.display="none";$("qty").value=1}$("cancelBtn").onclick=reset;$("addBtn").onclick=()=>{const meal=$("meal").value.trim(),dietary=dietaryValue(),qty=Math.max(1,Math.min(500,+$("qty").value||1));if(!meal){alert("Please enter a meal name.");return}if($("dietary").value==="Other"&&!dietary){alert("Please enter the dietary / meal instruction.");return}const obj={meal,dietary,qty};if(editing>=0)meals[editing]=obj;else meals.push(obj);persist();reset()};function edit(i){editing=i;const m=meals[i];$("meal").value=m.meal;$("qty").value=m.qty;const known=[...$("dietary").options].map(o=>o.value);if(known.includes(m.dietary)){$("dietary").value=m.dietary;$("customDietary").style.display="none"}else{$("dietary").value="Other";$("customDietary").value=m.dietary;$("customDietary").style.display="block"}$("formTitle").textContent="Edit meal";$("addBtn").textContent="Save changes";$("cancelBtn").style.display="block";scrollTo({top:0,behavior:"smooth"})}function del(i){if(confirm("Delete this meal entry?")){meals.splice(i,1);persist();if(editing===i)reset()}}function render(){const total=meals.reduce((a,m)=>a+m.qty,0);$("total").textContent=total;if(!meals.length){$("list").className="empty";$("list").innerHTML="No meals added yet.";return}$("list").className="";$("list").innerHTML=meals.map((m,i)=>`<div class="meal"><h3>${esc(m.meal)}</h3><div class="meta">${esc(m.dietary)} · <b>${m.qty} label${m.qty===1?"":"s"}</b></div><div class="actions"><button class="secondary" onclick="edit(${i})">Edit</button><button class="danger" onclick="del(${i})">Delete</button></div></div>`).join("")}function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}function buildPrintSheet(){const sheet=$("printSheet");sheet.innerHTML="";const expanded=[];meals.forEach(m=>{for(let i=0;i<m.qty;i++)expanded.push(m)});expanded.forEach(m=>{const label=document.createElement("div");label.className="averyLabel";const meal=document.createElement("div");meal.className="averyMeal";meal.textContent=m.meal;label.appendChild(meal);if(m.dietary!=="Regular / No instruction"){const diet=document.createElement("div");diet.className="averyDiet";diet.textContent=m.dietary;label.appendChild(diet)}sheet.appendChild(label)})}$("printBtn").onclick=()=>{if(!meals.length){alert("Add at least one meal first.");return}buildPrintSheet();requestAnimationFrame(()=>setTimeout(()=>window.print(),80))};window.addEventListener("beforeprint",buildPrintSheet);$("csvBtn").onclick=()=>{if(!meals.length){alert("Add at least one meal first.");return}const date=new Date().toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"numeric",year:"2-digit"});let rows=[["Meal","Dietary","PackedDate"]];meals.forEach(m=>{for(let i=0;i<m.qty;i++)rows.push([m.meal,m.dietary==="Regular / No instruction"?"":m.dietary,date])});const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\r\n");download("Meal Mail Merge Data.csv",csv,"text/csv;charset=utf-8")};$("jsonBtn").onclick=()=>download("Meal Label Backup.json",JSON.stringify(meals,null,2),"application/json");$("clearBtn").onclick=()=>{if(meals.length&&confirm("Clear all of today's meal entries?")){meals=[];persist();reset()}};render();
+</script><script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}</script></body></html>
