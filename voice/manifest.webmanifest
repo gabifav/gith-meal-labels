@@ -1,0 +1,8 @@
+{
+  "name": "Admin Voice",
+  "short_name": "Admin Voice",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f5fa",
+  "theme_color": "#6561A8"
+}
