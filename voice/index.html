@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#6561A8"><title>Admin Voice</title>
+<style>
+:root{--p:#6561A8;--bg:#f6f5fa;--card:#fff;--muted:#686574;--red:#b42318}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:#24232a}header{background:var(--p);color:#fff;padding:24px 18px 28px;border-radius:0 0 26px 26px}header h1{margin:0;font-size:28px}header p{margin:6px 0 0;opacity:.9}main{max-width:720px;margin:auto;padding:16px}.card{background:var(--card);padding:18px;border-radius:20px;margin-bottom:16px;box-shadow:0 4px 18px #0000000d}h2{font-size:19px;margin:0 0 8px}.hint{font-size:13px;color:var(--muted);margin:0 0 12px}textarea{width:100%;min-height:190px;border:2px solid #dedce7;border-radius:14px;padding:14px;font:inherit;resize:vertical}button,select,input{font:inherit}.buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}button{border:0;border-radius:13px;padding:14px;font-weight:750}.primary{background:var(--p);color:#fff}.secondary{background:#eceaf4}.danger{background:#fff0ee;color:var(--red)}.wide{grid-column:1/-1}.status{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:10px 0}.dot{width:10px;height:10px;border-radius:50%;background:#aaa}.listening .dot{background:#d92d20;box-shadow:0 0 0 5px #d92d2020}.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.controls label{font-size:13px;font-weight:700}.controls select,.controls input{width:100%;margin-top:5px;padding:11px;border:2px solid #dedce7;border-radius:11px;background:#fff}.rangeValue{font-weight:500;color:var(--muted)}@media(max-width:460px){.controls{grid-template-columns:1fr}.buttons{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header><h1>Admin Voice</h1><p>Speak it, type it, or have it read back.</p></header>
+<main>
+<section class="card"><h2>🎙 Speech to text</h2><p class="hint">Tap Start listening, then speak. Your words will be added below.</p><div id="status" class="status"><span class="dot"></span><span id="statusText">Ready</span></div><textarea id="notes" placeholder="Your dictated admin notes will appear here…"></textarea><div class="buttons"><button id="start" class="primary">🎙 Start listening</button><button id="stop" class="secondary">■ Stop</button><button id="copy" class="secondary">Copy text</button><button id="clear" class="danger">Clear</button></div></section>
+<section class="card"><h2>🔊 Text to speech</h2><p class="hint">It reads whatever is in the text box above.</p><div class="controls"><label>Voice<select id="voice"></select></label><label>Speed <span id="rateText" class="rangeValue">1×</span><input id="rate" type="range" min=".5" max="2" value="1" step=".1"></label></div><div class="buttons"><button id="speak" class="primary">▶ Read aloud</button><button id="pause" class="secondary">⏸ Pause</button><button id="resume" class="secondary">▶ Resume</button><button id="stopSpeak" class="danger">■ Stop reading</button></div></section>
+<section class="card"><h2>Quick admin tools</h2><p class="hint">Keeps everything on this device. Notes are saved automatically in this browser.</p><div class="buttons"><button id="date" class="secondary wide">+ Add today's date & time</button></div></section>
+</main>
+<script>
+const $=x=>document.getElementById(x),notes=$('notes');notes.value=localStorage.getItem('adminVoiceNotes')||'';notes.addEventListener('input',()=>localStorage.setItem('adminVoiceNotes',notes.value));
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec,listening=false;
+function state(text,on=false){$('statusText').textContent=text;$('status').classList.toggle('listening',on)}
+if(SR){rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang='en-AU';let base='';
+rec.onstart=()=>{listening=true;base=notes.value;state('Listening…',true)};
+rec.onresult=e=>{let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t+' ';else interim+=t}if(final){base+=(base&&!/\s$/.test(base)?' ':'')+final;notes.value=base;localStorage.setItem('adminVoiceNotes',notes.value)}state(interim?'Listening: '+interim:'Listening…',true)};
+rec.onerror=e=>{state(e.error==='not-allowed'?'Microphone permission needed':'Stopped: '+e.error);listening=false};
+rec.onend=()=>{listening=false;state('Ready')};
+$('start').onclick=()=>{if(!listening)try{rec.start()}catch(e){}};
+$('stop').onclick=()=>{if(listening)rec.stop()};
+}else{state('Speech recognition is not supported in this browser');$('start').disabled=true;$('stop').disabled=true}
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(notes.value);$('copy').textContent='Copied ✓';setTimeout(()=>$('copy').textContent='Copy text',1200)}catch(e){notes.select();document.execCommand('copy')}};
+$('clear').onclick=()=>{if(confirm('Clear all text?')){notes.value='';localStorage.removeItem('adminVoiceNotes')}};
+function loadVoices(){const vs=speechSynthesis.getVoices(),sel=$('voice'),old=sel.value;sel.innerHTML='';vs.forEach((v,i)=>{const o=document.createElement('option');o.value=i;o.textContent=v.name+' ('+v.lang+')';if(v.lang==='en-AU')o.selected=true;sel.appendChild(o)});if(old&&sel.options[old])sel.value=old}
+loadVoices();speechSynthesis.onvoiceschanged=loadVoices;
+$('rate').oninput=()=>$('rateText').textContent=$('rate').value+'×';
+$('speak').onclick=()=>{speechSynthesis.cancel();if(!notes.value.trim())return;const u=new SpeechSynthesisUtterance(notes.value),vs=speechSynthesis.getVoices();u.voice=vs[+$('voice').value]||null;u.rate=+$('rate').value;u.lang=u.voice?.lang||'en-AU';speechSynthesis.speak(u)};
+$('pause').onclick=()=>speechSynthesis.pause();$('resume').onclick=()=>speechSynthesis.resume();$('stopSpeak').onclick=()=>speechSynthesis.cancel();
+$('date').onclick=()=>{const d=new Date(),s=d.toLocaleString('en-AU',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'});notes.value+=(notes.value?'\n':'')+s+' — ';notes.focus();localStorage.setItem('adminVoiceNotes',notes.value)};
+</script></body></html>
