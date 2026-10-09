@@ -1,0 +1,81 @@
+(() => {
+'use strict';
+const BASE='https://wkebybuwfckihrutdrpy.supabase.co';
+const KEY='sb_publishable_7c_L4Zb2TXlaeGhFujU9cg_oKOcSJOs';
+const $=id=>document.getElementById(id);
+const panel=document.createElement('section');panel.className='card';
+panel.innerHTML=`<h2>Shared meals · connect devices</h2><p class="note">Invite selected devices. Contributors add meals and edit their own entries. Only the admin can remove entries. Local meals stay separate until you import them.</p><p id="sharedStatus" role="status" class="note">Not connected. Local mode is available below.</p><label for="deviceLabel">This device’s name</label><input id="deviceLabel" maxlength="120" placeholder="e.g. Gabi’s phone"><div id="sharedConnect"><button class="primary" id="createShared">Create shared workspace</button><label for="joinSharedCode">Invitation link or code</label><input id="joinSharedCode" placeholder="Paste an invitation or scan its QR code"><button class="secondary" id="joinShared" style="margin-top:8px">Join workspace</button></div>
+<div id="sharedContent" hidden><div class="actions"><button class="secondary" id="refreshShared">Refresh</button><button class="secondary" id="inviteShared" hidden>Connect another device</button><button class="secondary" id="importLocalShared" hidden>Import local meals & photos</button></div><div id="sharedInvite" hidden><p class="note">This invitation works once and expires in 15 minutes. New devices can submit and edit their own entries.</p><div id="sharedQR"></div><label for="sharedLink">Invitation link</label><input id="sharedLink" readonly><button class="secondary" id="copySharedLink">Copy link</button></div><div id="sharedDevices"></div>
+<form id="sharedForm"><h3 id="sharedFormTitle">Submit a meal</h3><label for="sharedName">Meal name (required)</label><input id="sharedName" required maxlength="160"><label for="sharedQty">Number of meals (optional)</label><input id="sharedQty" type="number" min="1" max="500" step="1" placeholder="Leave blank if unknown"><label for="sharedDiet">Dietaries (optional)</label><input id="sharedDiet" maxlength="200" placeholder="e.g. GF, vegan"><label for="sharedCook">Cook name (optional)</label><input id="sharedCook" maxlength="160"><label for="sharedDay">Day</label><select id="sharedDay"><option value="tue">Tuesday</option><option value="fri">Friday</option></select><label for="sharedDate">Packed date</label><input id="sharedDate" type="date"><label for="sharedPhoto">Meal photo (optional)</label><input id="sharedPhoto" type="file" accept="image/*"><img id="sharedPhotoPreview" hidden alt="Selected meal photo" style="max-width:100%;max-height:220px;border-radius:12px;margin-top:10px"><label id="removeSharedPhotoLabel" hidden style="display:flex;gap:8px;align-items:center"><input id="removeSharedPhoto" type="checkbox" style="width:auto">Remove photo from this entry</label><button class="primary" id="saveShared">Submit meal</button><button type="button" class="secondary" id="cancelShared" hidden style="margin-top:8px">Cancel edit</button></form>
+<label for="sharedSearch">Find a meal</label><input id="sharedSearch" type="search" placeholder="Search meal, dietary or cook"><div id="sharedList"></div><p class="note">Shared entries appear in today’s labels for their chosen day. A blank meal count creates no labels. Changes sync while online; wait for “Saved” before leaving.</p></div>`;
+document.querySelector('main').prepend(panel);
+let session=null, workspace=localStorage.getItem('githSharedWorkspace')||'', devices=[],rows=[],editRow=null,photo='',busy=false,loading=false;
+const status=t=>$('sharedStatus').textContent=t;
+try{session=JSON.parse(localStorage.getItem('githSharedSession')||'null');}catch{}
+function storeSession(data){session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Date.now()+data.expires_in*1000,user:data.user};localStorage.setItem('githSharedSession',JSON.stringify(session));}
+async function request(path,{method='GET',body,auth=true}={}){
+ if(auth){await authenticate();}
+ const response=await fetch(BASE+path,{method,headers:{apikey:KEY,'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+session.access_token}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw new Error(data?.message||data?.msg||data?.error_description||'Connection failed ('+response.status+')');return data;
+}
+async function authenticate(){
+ if(session&&session.expires_at>Date.now()+60000)return;
+ const path=session?'/auth/v1/token?grant_type=refresh_token':'/auth/v1/signup';
+ const data=await request(path,{method:'POST',auth:false,body:session?{refresh_token:session.refresh_token}:{data:{}}});
+ storeSession(data);
+}
+const rpc=(name,body)=>request('/rest/v1/rpc/'+name,{method:'POST',body});
+const admin=()=>devices.some(d=>d.user_id===session?.user.id&&d.role==='admin');
+const canEdit=r=>admin()||r.owner_id===session?.user.id;
+function reset(){editRow=null;photo='';$('sharedForm').reset();$('sharedDay').value=typeof activeDay==='string'?activeDay:'tue';$('sharedDate').value=typeof today==='function'?today():new Date().toISOString().slice(0,10);$('sharedPhotoPreview').hidden=true;$('removeSharedPhotoLabel').hidden=true;$('cancelShared').hidden=true;$('saveShared').textContent='Submit meal';$('sharedFormTitle').textContent='Submit a meal';}
+function activate(){
+ $('sharedConnect').hidden=true;$('sharedContent').hidden=false;$('inviteShared').hidden=!admin();$('importLocalShared').hidden=!admin();
+ // Shared mode uses the shared form. Printing still uses the existing Avery renderer.
+ const keep=new Set([panel,$('printBtn').closest('section')]);
+ document.querySelectorAll('main > section').forEach(section=>{if(!keep.has(section))section.hidden=true;});
+ $('clearBtn').hidden=true;window.githSharedActive=true;
+ projectMeals();render();
+}
+function projectMeals(){if(!workspace||!window.githSharedActive)return;meals=rows.filter(r=>r.kind==='meal'&&r.day===activeDay&&Number(r.data.qty)>0).map(r=>({meal:r.data.meal,dietary:r.data.dietary||'Regular / No instruction',qty:Number(r.data.qty),packedDate:r.data.packedDate||today()}));}
+async function refresh(){
+ if(loading||busy||!workspace)return;loading=true;
+ try{const [d,r]=await Promise.all([request('/rest/v1/gith_devices?workspace_id=eq.'+encodeURIComponent(workspace)+'&select=*'),request('/rest/v1/gith_entries?workspace_id=eq.'+encodeURIComponent(workspace)+'&select=*')]);
+ if(!d.some(x=>x.user_id===session.user.id))throw new Error('This device no longer has access to this workspace.');
+ devices=d;rows=r;activate();status('Connected · '+(admin()?'admin':'contributor')+' · synced '+new Date().toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}));
+ }catch(e){status('Not synced: '+e.message+' Your form has been kept.');if(window.githSharedActive){rows=[];meals=[];$('sharedList').replaceChildren();$('sharedDevices').replaceChildren();$('saveShared').disabled=true;}}
+ finally{loading=false;}
+}
+function render(){
+ $('saveShared').disabled=false;
+ const list=$('sharedList');list.replaceChildren();const q=$('sharedSearch').value.trim().toLowerCase();
+ const shown=rows.filter(r=>[r.data.meal,r.data.name,r.data.dietary,r.data.cook].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.data.meal||a.data.name).localeCompare(b.data.meal||b.data.name));
+ if(!shown.length){const p=document.createElement('p');p.className='empty';p.textContent='No shared meals yet.';list.append(p);}
+ for(const row of shown){const box=document.createElement('article');box.className='meal';const h=document.createElement('h3');h.textContent=row.data.meal||row.data.name;box.append(h);
+ const matchedPhoto=row.data.photo||rows.find(x=>x.kind==='photo'&&(x.data.meal||'').trim().toLowerCase()===(row.data.meal||'').trim().toLowerCase())?.data.photo;if(matchedPhoto){const img=document.createElement('img');img.src=matchedPhoto;img.alt=h.textContent;img.className='matchedMealPhoto';box.append(img);}
+ const meta=document.createElement('p');meta.className='meta';meta.textContent=[row.day==='all'?'Photo guide':row.day==='tue'?'Tuesday':'Friday',row.data.qty?row.data.qty+' meals':'Count not entered',row.data.dietary,row.data.cook?'Cook: '+row.data.cook:'',devices.find(x=>x.user_id===row.owner_id)?.label||'Disconnected contributor'].filter(Boolean).join(' · ');box.append(meta);
+ const actions=document.createElement('div');actions.className='actions';
+ if(canEdit(row)){const b=document.createElement('button');b.className='secondary';b.textContent='Edit';b.onclick=()=>{editRow=structuredClone(row);photo=row.data.photo||'';$('sharedName').value=row.data.meal||row.data.name;$('sharedQty').value=row.data.qty||'';$('sharedDiet').value=row.data.dietary||'';$('sharedCook').value=row.data.cook||'';$('sharedDay').value=row.day==='all'?activeDay:row.day;$('sharedDate').value=row.data.packedDate||today();$('sharedPhoto').value='';$('sharedPhotoPreview').src=photo;$('sharedPhotoPreview').hidden=!photo;$('removeSharedPhotoLabel').hidden=!photo;$('removeSharedPhoto').checked=false;$('cancelShared').hidden=false;$('saveShared').textContent='Save changes';$('sharedFormTitle').textContent='Edit meal';$('sharedName').focus();};actions.append(b);}
+ if(admin()){const b=document.createElement('button');b.className='danger';b.textContent='Remove';b.onclick=async()=>{if(!confirm('Remove '+h.textContent+' from all connected devices?'))return;try{await rpc('gith_delete_entry',{w:workspace,entry_id:row.id,expected_version:row.version});if(editRow?.id===row.id)reset();await refresh();}catch(e){status(e.message);}};actions.append(b);}
+ box.append(actions);list.append(box);}
+ const deviceBox=$('sharedDevices');deviceBox.replaceChildren();if(admin()){const details=document.createElement('details');const heading=document.createElement('summary');heading.textContent='Connected devices ('+devices.length+')';details.append(heading);for(const d of devices){const p=document.createElement('p');p.textContent=d.label+' · '+d.role;if(d.role==='editor'){const b=document.createElement('button');b.className='danger';b.textContent='Disconnect';b.onclick=async()=>{if(!confirm('Disconnect '+d.label+'?'))return;try{await rpc('gith_remove_device',{w:workspace,device_user:d.user_id});await refresh();}catch(e){status(e.message);}};p.append(b);}details.append(p);}deviceBox.append(details);}
+}
+function label(){const value=$('deviceLabel').value.trim();if(!value)throw new Error('Enter a name for this device.');localStorage.setItem('githDeviceLabel',value);return value;}
+$('deviceLabel').value=localStorage.getItem('githDeviceLabel')||'';
+$('createShared').onclick=async()=>{try{workspace=await rpc('gith_create_workspace',{workspace_name:'Good in the Hood',device_label:label()});localStorage.setItem('githSharedWorkspace',workspace);reset();await refresh();}catch(e){status('Setup needed: '+e.message);}};
+$('joinShared').onclick=async()=>{try{let token=$('joinSharedCode').value.trim();if(token.includes('#'))token=new URLSearchParams(token.split('#')[1]).get('invite')||'';if(!/^[0-9a-f-]{36}$/i.test(token))throw new Error('Paste a valid invitation link or code.');workspace=await rpc('gith_join_workspace',{invite_token:token,device_label:label()});localStorage.setItem('githSharedWorkspace',workspace);history.replaceState(null,'',location.pathname+location.search);reset();await refresh();}catch(e){status(e.message);}};
+$('inviteShared').onclick=async()=>{try{const token=await rpc('gith_make_invite',{w:workspace});const link=location.origin+location.pathname+'#invite='+token;$('sharedLink').value=link;$('sharedInvite').hidden=false;$('sharedQR').replaceChildren();if(window.QRCode)new QRCode($('sharedQR'),{text:link,width:220,height:220});else $('sharedQR').textContent='QR renderer unavailable. Use the invitation link below.';}catch(e){status(e.message);}};
+$('copySharedLink').onclick=async()=>{try{await navigator.clipboard.writeText($('sharedLink').value);status('Invitation copied.');}catch{$('sharedLink').select();status('Select and copy the invitation link.');}};
+$('refreshShared').onclick=refresh;$('sharedSearch').oninput=render;$('cancelShared').onclick=reset;
+function resize(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{try{const scale=Math.min(1,900/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.78));}catch(e){reject(e);}finally{URL.revokeObjectURL(url);}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Use a supported image such as JPG or PNG.'));};img.src=url;});}
+$('sharedPhoto').onchange=async()=>{const file=$('sharedPhoto').files[0];if(!file)return;busy=true;$('saveShared').disabled=true;try{if(file.size>30*1024*1024)throw new Error('Choose a photo smaller than 30 MB.');photo=await resize(file);$('sharedPhotoPreview').src=photo;$('sharedPhotoPreview').hidden=false;$('removeSharedPhoto').checked=false;}catch(e){status(e.message);$('sharedPhoto').value='';}finally{busy=false;$('saveShared').disabled=false;}};
+$('sharedForm').onsubmit=async event=>{event.preventDefault();if(busy)return;const name=$('sharedName').value.trim(),qty=$('sharedQty').value?Number($('sharedQty').value):null;if(!name)return;if(qty!==null&&(!Number.isInteger(qty)||qty<1||qty>500))return status('Enter a whole number from 1 to 500, or leave the count blank.');busy=true;$('saveShared').disabled=true;try{const payload={meal:name,qty,dietary:$('sharedDiet').value.trim(),cook:$('sharedCook').value.trim(),packedDate:$('sharedDate').value||today(),photo:$('removeSharedPhoto').checked?'':photo};await rpc('gith_save_entry',{w:workspace,entry_id:editRow?.id||crypto.randomUUID(),entry_kind:editRow?.kind||'meal',entry_day:editRow?.day||$('sharedDay').value,payload,expected_version:editRow?.version||0});reset();busy=false;await refresh();status('Saved and synced.');}catch(e){status('Not saved: '+e.message);}finally{busy=false;$('saveShared').disabled=false;}};
+$('importLocalShared').onclick=async()=>{if(!admin()||busy)return;if(!confirm('Copy this device’s local meals and photos into the shared workspace? Do this only once to avoid duplicates.'))return;busy=true;try{for(const day of ['tue','fri']){const local=JSON.parse(localStorage.getItem('mealLabelMeals_'+day)||'[]');for(const m of local)await rpc('gith_save_entry',{w:workspace,entry_id:crypto.randomUUID(),entry_kind:'meal',entry_day:day,payload:{...m,cook:'',photo:''},expected_version:0});}
+ const photos=await new Promise((resolve,reject)=>{const req=indexedDB.open('githMealPhotoGuide',1);req.onupgradeneeded=()=>req.result.createObjectStore('photos',{keyPath:'id'});req.onerror=()=>reject(req.error);req.onsuccess=()=>{const db=req.result,r=db.transaction('photos').objectStore('photos').getAll();r.onsuccess=()=>{db.close();resolve(r.result);};r.onerror=()=>{db.close();reject(r.error);};};});
+ for(const p of photos)await rpc('gith_save_entry',{w:workspace,entry_id:crypto.randomUUID(),entry_kind:'photo',entry_day:'all',payload:{meal:p.name,photo:p.photo,qty:null,dietary:'',cook:''},expected_version:0});status('Local meals and photos imported.');}catch(e){status('Import stopped: '+e.message+' Some entries may already have copied.');}finally{busy=false;await refresh();}};
+// Re-project shared labels after changing day, without modifying local saved meals.
+const oldSwitch=window.switchDay;window.switchDay=function(day){oldSwitch(day);if(window.githSharedActive){projectMeals();$('sharedDay').value=day;}};
+$('tabTue').onclick=()=>window.switchDay('tue');$('tabFri').onclick=()=>window.switchDay('fri');
+const token=new URLSearchParams(location.hash.slice(1)).get('invite');if(token){$('joinSharedCode').value=token;status('Invitation ready. Enter this device’s name, then tap Join workspace.');}
+reset();if(workspace)refresh();setInterval(()=>{if(!document.hidden)refresh();},5000);window.addEventListener('online',refresh);
+})();
