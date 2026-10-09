@@ -55,3 +55,15 @@ if device_user=auth.uid() then raise exception 'Cannot remove your own admin dev
 delete from gith_devices where workspace_id=w and user_id=device_user and role='editor';end $$;
 revoke execute on function public.gith_member(uuid),public.gith_admin(uuid),public.gith_create_workspace(text,text),public.gith_make_invite(uuid),public.gith_join_workspace(uuid,text),public.gith_save_entry(uuid,uuid,text,text,jsonb,integer),public.gith_delete_entry(uuid,uuid,integer),public.gith_remove_device(uuid,uuid) from public,anon;
 grant execute on function public.gith_member(uuid),public.gith_admin(uuid),public.gith_create_workspace(text,text),public.gith_make_invite(uuid),public.gith_join_workspace(uuid,text),public.gith_save_entry(uuid,uuid,text,text,jsonb,integer),public.gith_delete_entry(uuid,uuid,integer),public.gith_remove_device(uuid,uuid) to authenticated;
+
+-- Run this update once in Supabase SQL Editor.
+create or replace function public.gith_promote_device(w uuid, device_user uuid)
+returns void language plpgsql security definer set search_path=public as $$
+begin
+  if not public.gith_admin(w) then raise exception 'Admin access required'; end if;
+  update public.gith_devices set role='admin'
+  where workspace_id=w and user_id=device_user;
+  if not found then raise exception 'Device is not a member of this workspace'; end if;
+end $$;
+revoke execute on function public.gith_promote_device(uuid,uuid) from public,anon;
+grant execute on function public.gith_promote_device(uuid,uuid) to authenticated;
