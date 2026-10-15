@@ -52,6 +52,7 @@ async function refresh(){
  finally{loading=false;}
 }
 function render(){
+ window.dispatchEvent(new CustomEvent('gith:shared-entries',{detail:rows.map(r=>r.data)}));
  $('saveShared').disabled=false;
  const list=$('sharedList');list.replaceChildren();const q=$('sharedSearch').value.trim().toLowerCase();
  const shown=rows.filter(r=>(r.data.archived===true)===showArchived).filter(r=>[r.data.meal,r.data.name,r.data.dietary,r.data.cook].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.data.meal||a.data.name).localeCompare(b.data.meal||b.data.name));
